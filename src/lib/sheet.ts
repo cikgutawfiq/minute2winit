@@ -1,5 +1,5 @@
 import { parseCsv } from "./csv";
-import { ACTIVITIES } from "@/data/activities";
+import { SEED_ACTIVITIES } from "@/data";
 import {
   Activity,
   Category,
@@ -32,6 +32,8 @@ const COLUMNS = [
   "rules",
   "variation",
   "debriefQuestions",
+  "illustration",
+  "imageUrl",
 ] as const;
 
 function splitList(value: string | undefined): string[] {
@@ -73,6 +75,8 @@ function rowToActivity(header: string[], row: string[]): Activity | null {
     rules: splitList(get("rules")),
     variation: get("variation") || undefined,
     debriefQuestions: splitList(get("debriefQuestions")),
+    illustration: get("illustration") || undefined,
+    imageUrl: get("imageUrl") || undefined,
   };
 }
 
@@ -97,9 +101,13 @@ export async function getActivities(): Promise<Activity[]> {
       .filter((a): a is Activity => a !== null);
 
     if (activities.length === 0) throw new Error("Sheet produced no valid rows");
-    return activities;
+
+    const seedById = new Map(SEED_ACTIVITIES.map((a) => [a.id, a]));
+    return activities.map((a) =>
+      a.illustration ? a : { ...a, illustration: seedById.get(a.id)?.illustration }
+    );
   } catch {
-    return ACTIVITIES;
+    return SEED_ACTIVITIES;
   }
 }
 
@@ -125,6 +133,8 @@ export function activitiesToCsv(activities: Activity[]): string {
       a.rules.join(" | "),
       a.variation ?? "",
       (a.debriefQuestions ?? []).join(" | "),
+      a.illustration ?? "",
+      a.imageUrl ?? "",
     ].map(escape);
     lines.push(row.join(","));
   }

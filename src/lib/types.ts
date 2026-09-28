@@ -28,6 +28,8 @@ export interface Activity {
   rules: string[];
   variation?: string;
   debriefQuestions?: string[];
+  illustration?: string;
+  imageUrl?: string;
 }
 
 export const CATEGORIES: Category[] = [

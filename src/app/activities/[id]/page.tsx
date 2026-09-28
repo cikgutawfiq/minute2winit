@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getActivities } from "@/lib/sheet";
+import { ActivityIllustration } from "@/components/ActivityIllustration";
 
 export async function generateStaticParams() {
   const activities = await getActivities();
@@ -24,7 +25,12 @@ export default async function ActivityPage({
         ← Back to all activities
       </Link>
 
-      <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
+      <ActivityIllustration
+        activity={activity}
+        className="mt-4 aspect-[3/2] w-full rounded-2xl border border-black/10 dark:border-white/10"
+      />
+
+      <h1 className="mt-6 text-3xl font-bold tracking-tight sm:text-4xl">
         {activity.name}
       </h1>
       <p className="mt-2 text-lg text-foreground/70">{activity.summary}</p>

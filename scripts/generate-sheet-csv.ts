@@ -1,5 +1,5 @@
 import { writeFileSync } from "fs";
-import { ACTIVITIES } from "../src/data/activities";
+import { SEED_ACTIVITIES as ACTIVITIES } from "../src/data";
 import { activitiesToCsv } from "../src/lib/sheet";
 
 const csv = activitiesToCsv(ACTIVITIES);

@@ -1,0 +1,51 @@
+import { Activity } from "@/lib/types";
+import { ACTIVITIES as BASE } from "./activities";
+import { MORE_ACTIVITIES } from "./activities-more";
+
+const BASE_ILLUSTRATIONS: Record<string, string> = {
+  "balloon-tower": "balloon",
+  "cookie-face": "cookie",
+  "junk-in-the-trunk": "box",
+  "suck-it-up": "straw",
+  "mm-straw-relay": "candy",
+  "cup-stack-tower": "cups",
+  "egg-roulette": "egg",
+  "paper-plane-precision": "plane",
+  "spoon-egg-relay": "spoon",
+  "ping-pong-blow-race": "pingpong",
+  "two-truths-lie": "speech",
+  "human-bingo": "card",
+  "speed-networking": "stopwatch",
+  "desert-island": "island",
+  "common-ground": "handshake",
+  "would-you-rather-corners": "signpost",
+  "zip-zap-boing": "lightning",
+  "fruit-salad": "apple",
+  "the-wave": "wave",
+  "rps-tournament": "hand",
+  "freeze-dance": "music",
+  "human-knot": "rope",
+  "marshmallow-challenge": "tower",
+  "trust-cup-tower": "cups",
+  minefield: "cone",
+  "egg-drop": "egg",
+  "perfect-square": "rope",
+  "trust-fall": "heart",
+  "blindfolded-trail": "blindfold",
+  "back-to-back-drawing": "pencil",
+  "silent-line-up": "hand",
+  "compass-walk": "signpost",
+  "tug-of-war": "rope",
+  "amazing-race-scavenger": "flag",
+  "sack-race-relay": "sack",
+  "balloon-volleyball": "volleyball",
+  "terrarium-building": "plant",
+  "team-mural": "paint",
+  "virtual-scavenger-hunt": "laptop",
+  "online-pictionary": "pencil",
+};
+
+export const SEED_ACTIVITIES: Activity[] = [
+  ...BASE.map((a) => ({ ...a, illustration: a.illustration ?? BASE_ILLUSTRATIONS[a.id] })),
+  ...MORE_ACTIVITIES,
+];
