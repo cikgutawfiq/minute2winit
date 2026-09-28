@@ -2,21 +2,27 @@ import { Activity, Category, EnergyLevel, PrepEffort, SortKey } from "./types";
 
 export interface Filters {
   search: string;
-  categories: Category[];
-  energyLevels: EnergyLevel[];
+  category: Category | "";
+  energyLevel: EnergyLevel | "";
+  prepEffort: PrepEffort | "";
   groupSize: number | null;
   maxDuration: number | null;
-  prepEfforts: PrepEffort[];
 }
 
 export const DEFAULT_FILTERS: Filters = {
   search: "",
-  categories: [],
-  energyLevels: [],
+  category: "",
+  energyLevel: "",
+  prepEffort: "",
   groupSize: null,
   maxDuration: null,
-  prepEfforts: [],
 };
+
+export function hasActiveFilters(f: Filters): boolean {
+  return Boolean(
+    f.search || f.category || f.energyLevel || f.prepEffort || f.groupSize || f.maxDuration
+  );
+}
 
 const ENERGY_RANK: Record<EnergyLevel, number> = { Low: 0, Medium: 1, High: 2 };
 const PREP_RANK: Record<PrepEffort, number> = {
@@ -34,9 +40,9 @@ export function filterActivities(activities: Activity[], f: Filters): Activity[]
       const haystack = `${a.name} ${a.summary} ${a.tags.join(" ")}`.toLowerCase();
       if (!haystack.includes(search)) return false;
     }
-    if (f.categories.length > 0 && !f.categories.includes(a.category)) return false;
-    if (f.energyLevels.length > 0 && !f.energyLevels.includes(a.energyLevel)) return false;
-    if (f.prepEfforts.length > 0 && !f.prepEfforts.includes(a.prepEffort)) return false;
+    if (f.category && a.category !== f.category) return false;
+    if (f.energyLevel && a.energyLevel !== f.energyLevel) return false;
+    if (f.prepEffort && a.prepEffort !== f.prepEffort) return false;
     if (f.groupSize !== null) {
       if (a.groupSizeMin > f.groupSize || a.groupSizeMax < f.groupSize) return false;
     }
@@ -47,9 +53,11 @@ export function filterActivities(activities: Activity[], f: Filters): Activity[]
 
 export function sortActivities(
   activities: Activity[],
-  key: SortKey,
+  key: SortKey | "random",
   direction: "asc" | "desc" = "asc"
 ): Activity[] {
+  if (key === "random") return activities;
+
   const sorted = [...activities].sort((a, b) => {
     switch (key) {
       case "name":

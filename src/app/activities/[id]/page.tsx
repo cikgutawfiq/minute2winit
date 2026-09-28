@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getActivities } from "@/lib/sheet";
 import { ActivityIllustration } from "@/components/ActivityIllustration";
+import { StarRating } from "@/components/StarRating";
+import { getPointToPonder } from "@/lib/pointToPonder";
 
 export async function generateStaticParams() {
   const activities = await getActivities();
@@ -30,10 +32,15 @@ export default async function ActivityPage({
         className="mt-4 aspect-[3/2] w-full rounded-2xl border border-black/10 dark:border-white/10"
       />
 
-      <h1 className="mt-6 text-3xl font-bold tracking-tight sm:text-4xl">
-        {activity.name}
-      </h1>
-      <p className="mt-2 text-lg text-foreground/70">{activity.summary}</p>
+      <div className="mt-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            {activity.name}
+          </h1>
+          <p className="mt-2 text-lg text-foreground/70">{activity.summary}</p>
+        </div>
+        <StarRating activityId={activity.id} />
+      </div>
 
       <div className="mt-6 flex flex-wrap gap-3 text-sm">
         <Badge>{activity.category}</Badge>
@@ -88,6 +95,12 @@ export default async function ActivityPage({
           </ul>
         </Section>
       )}
+
+      <Section title="💡 Point to Ponder">
+        <p className="rounded-lg bg-brand/10 p-4 italic text-foreground/80">
+          {getPointToPonder(activity)}
+        </p>
+      </Section>
 
       {activity.tags.length > 0 && (
         <div className="mt-8 flex flex-wrap gap-2">

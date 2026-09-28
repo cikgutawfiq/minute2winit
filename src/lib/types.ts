@@ -30,6 +30,7 @@ export interface Activity {
   debriefQuestions?: string[];
   illustration?: string;
   imageUrl?: string;
+  pointToPonder?: string;
 }
 
 export const CATEGORIES: Category[] = [

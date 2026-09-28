@@ -1,39 +1,82 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import {
-  Activity,
-  CATEGORIES,
-  Category,
-  ENERGY_LEVELS,
-  EnergyLevel,
-  PREP_EFFORTS,
-  PrepEffort,
-  SortKey,
-} from "@/lib/types";
-import { DEFAULT_FILTERS, filterActivities, sortActivities } from "@/lib/filter";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Activity, SortKey } from "@/lib/types";
+import { DEFAULT_FILTERS, Filters, filterActivities, sortActivities } from "@/lib/filter";
+import { shuffle } from "@/lib/shuffle";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 import { ActivityCard } from "./ActivityCard";
+import { FilterPanel } from "./FilterPanel";
 
-function toggle<T>(list: T[], value: T): T[] {
-  return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
-}
-
-const SORT_OPTIONS: { key: SortKey; label: string }[] = [
-  { key: "name", label: "Name (A–Z)" },
-  { key: "duration", label: "Duration (shortest first)" },
-  { key: "groupSize", label: "Group size (smallest first)" },
-  { key: "energy", label: "Energy level (lowest first)" },
-  { key: "prep", label: "Prep effort (lowest first)" },
-];
+const PAGE_SIZE = 20; // desktop: 4 columns x 5 rows; mobile: infinite-scroll chunk
 
 export function ActivityBrowser({ activities }: { activities: Activity[] }) {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
-  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortKey, setSortKey] = useState<SortKey | "random">("random");
+  const [order, setOrder] = useState(activities);
+  const [page, setPage] = useState(1);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const isDesktop = useMediaQuery("(min-width: 1024px)");
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Randomize once on the client after mount, so the server-rendered order
+  // (used for the first paint / hydration) stays deterministic. This is a
+  // one-time sync from a non-deterministic source (Date.now()), which is
+  // exactly what an effect is for — not a derived-state anti-pattern.
+  useEffect(() => {
+    // One-time sync from a non-deterministic source, not derived state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOrder(shuffle(activities, Date.now()));
+  }, [activities]);
 
   const results = useMemo(() => {
-    const filtered = filterActivities(activities, filters);
+    const filtered = filterActivities(order, filters);
     return sortActivities(filtered, sortKey);
-  }, [activities, filters, sortKey]);
+  }, [order, filters, sortKey]);
+
+  function updateFilters(next: Filters) {
+    setFilters(next);
+    setPage(1);
+    setVisibleCount(PAGE_SIZE);
+  }
+
+  function updateSortKey(next: SortKey | "random") {
+    setSortKey(next);
+    setPage(1);
+    setVisibleCount(PAGE_SIZE);
+  }
+
+  const totalPages = Math.max(1, Math.ceil(results.length / PAGE_SIZE));
+  const pageItems = isDesktop
+    ? results.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+    : results.slice(0, visibleCount);
+
+  // Infinite scroll on mobile: grow visibleCount once the sentinel is near
+  // the viewport. Uses a scroll/resize listener (checked against
+  // getBoundingClientRect) rather than IntersectionObserver, which proved
+  // unreliable to trigger consistently across browser contexts. The initial
+  // synchronous check (for a page that loads already scrolled, or a short
+  // results list) is an intentional external-system sync, not derived state.
+  useEffect(() => {
+    if (isDesktop) return;
+
+    function checkSentinel() {
+      const el = sentinelRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      if (rect.top < window.innerHeight + 600) {
+        setVisibleCount((v) => Math.min(v + PAGE_SIZE, results.length));
+      }
+    }
+
+    checkSentinel();
+    window.addEventListener("scroll", checkSentinel, { passive: true });
+    window.addEventListener("resize", checkSentinel);
+    return () => {
+      window.removeEventListener("scroll", checkSentinel);
+      window.removeEventListener("resize", checkSentinel);
+    };
+  }, [isDesktop, results.length]);
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-10">
@@ -49,171 +92,82 @@ export function ActivityBrowser({ activities }: { activities: Activity[] }) {
         </p>
       </div>
 
-      {/* Search */}
-      <div className="mb-6">
+      <div className="mb-6 flex gap-3">
         <input
           type="search"
           placeholder="Search by name, summary or tag…"
           value={filters.search}
-          onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+          onChange={(e) => updateFilters({ ...filters, search: e.target.value })}
           className="w-full rounded-lg border border-black/10 bg-white px-4 py-3 text-sm shadow-sm outline-none focus:border-brand dark:border-white/10 dark:bg-white/5"
+        />
+        <FilterPanel
+          filters={filters}
+          setFilters={updateFilters}
+          sortKey={sortKey}
+          setSortKey={updateSortKey}
+          resultCount={results.length}
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[260px_1fr]">
-        {/* Filters */}
-        <aside className="space-y-6">
-          <FilterGroup title="Category">
-            {CATEGORIES.map((c) => (
-              <Checkbox
-                key={c}
-                label={c}
-                checked={filters.categories.includes(c)}
-                onChange={() =>
-                  setFilters({ ...filters, categories: toggle<Category>(filters.categories, c) })
-                }
-              />
+      <p className="mb-4 text-sm text-foreground/60">
+        {results.length} activit{results.length === 1 ? "y" : "ies"} found
+      </p>
+
+      {results.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-black/10 p-12 text-center text-foreground/60 dark:border-white/10">
+          No activities match your filters. Try clearing a few.
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {pageItems.map((a) => (
+              <ActivityCard key={a.id} activity={a} />
             ))}
-          </FilterGroup>
-
-          <FilterGroup title="Effort level">
-            {ENERGY_LEVELS.map((e) => (
-              <Checkbox
-                key={e}
-                label={e}
-                checked={filters.energyLevels.includes(e)}
-                onChange={() =>
-                  setFilters({ ...filters, energyLevels: toggle<EnergyLevel>(filters.energyLevels, e) })
-                }
-              />
-            ))}
-          </FilterGroup>
-
-          <FilterGroup title="Prep effort">
-            {PREP_EFFORTS.map((p) => (
-              <Checkbox
-                key={p}
-                label={p}
-                checked={filters.prepEfforts.includes(p)}
-                onChange={() =>
-                  setFilters({ ...filters, prepEfforts: toggle<PrepEffort>(filters.prepEfforts, p) })
-                }
-              />
-            ))}
-          </FilterGroup>
-
-          <FilterGroup title="Group size">
-            <input
-              type="number"
-              min={1}
-              placeholder="e.g. 12 people"
-              value={filters.groupSize ?? ""}
-              onChange={(e) =>
-                setFilters({
-                  ...filters,
-                  groupSize: e.target.value ? Number(e.target.value) : null,
-                })
-              }
-              className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-white/10 dark:bg-white/5"
-            />
-          </FilterGroup>
-
-          <FilterGroup title="Max duration (minutes)">
-            <input
-              type="number"
-              min={1}
-              placeholder="e.g. 15"
-              value={filters.maxDuration ?? ""}
-              onChange={(e) =>
-                setFilters({
-                  ...filters,
-                  maxDuration: e.target.value ? Number(e.target.value) : null,
-                })
-              }
-              className="w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-white/10 dark:bg-white/5"
-            />
-          </FilterGroup>
-
-          {(filters.categories.length > 0 ||
-            filters.energyLevels.length > 0 ||
-            filters.prepEfforts.length > 0 ||
-            filters.groupSize ||
-            filters.maxDuration ||
-            filters.search) && (
-            <button
-              onClick={() => setFilters(DEFAULT_FILTERS)}
-              className="text-sm font-medium text-brand hover:underline"
-            >
-              Clear all filters
-            </button>
-          )}
-        </aside>
-
-        {/* Results */}
-        <div>
-          <div className="mb-4 flex items-center justify-between">
-            <p className="text-sm text-foreground/60">
-              {results.length} activit{results.length === 1 ? "y" : "ies"} found
-            </p>
-            <select
-              value={sortKey}
-              onChange={(e) => setSortKey(e.target.value as SortKey)}
-              className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-brand dark:border-white/10 dark:bg-white/5"
-            >
-              {SORT_OPTIONS.map((opt) => (
-                <option key={opt.key} value={opt.key}>
-                  Sort: {opt.label}
-                </option>
-              ))}
-            </select>
           </div>
 
-          {results.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-black/10 p-12 text-center text-foreground/60 dark:border-white/10">
-              No activities match your filters. Try clearing a few.
-            </div>
+          {isDesktop ? (
+            totalPages > 1 && (
+              <div className="mt-8 flex items-center justify-center gap-2">
+                <PageButton disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
+                  ← Prev
+                </PageButton>
+                <span className="px-3 text-sm text-foreground/60">
+                  Page {page} of {totalPages}
+                </span>
+                <PageButton disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>
+                  Next →
+                </PageButton>
+              </div>
+            )
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {results.map((a) => (
-                <ActivityCard key={a.id} activity={a} />
-              ))}
+            <div ref={sentinelRef} className="flex justify-center py-8">
+              {visibleCount < results.length && (
+                <span className="text-sm text-foreground/50">Loading more…</span>
+              )}
             </div>
           )}
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }
 
-function FilterGroup({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-foreground/50">
-        {title}
-      </h3>
-      <div className="space-y-1.5">{children}</div>
-    </div>
-  );
-}
-
-function Checkbox({
-  label,
-  checked,
-  onChange,
+function PageButton({
+  children,
+  disabled,
+  onClick,
 }: {
-  label: string;
-  checked: boolean;
-  onChange: () => void;
+  children: React.ReactNode;
+  disabled: boolean;
+  onClick: () => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2 text-sm">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onChange}
-        className="h-4 w-4 rounded border-black/20 text-brand accent-brand"
-      />
-      {label}
-    </label>
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="rounded-md border border-black/10 px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40 hover:border-brand hover:text-brand dark:border-white/10"
+    >
+      {children}
+    </button>
   );
 }

@@ -1,5 +1,6 @@
 import { parseCsv } from "./csv";
 import { SEED_ACTIVITIES } from "@/data";
+import { getPointToPonder } from "./pointToPonder";
 import {
   Activity,
   Category,
@@ -34,6 +35,7 @@ const COLUMNS = [
   "debriefQuestions",
   "illustration",
   "imageUrl",
+  "pointToPonder",
 ] as const;
 
 function splitList(value: string | undefined): string[] {
@@ -58,7 +60,7 @@ function rowToActivity(header: string[], row: string[]): Activity | null {
   const groupSizeMax = parseInt(get("groupSizeMax"), 10);
   const durationMinutes = parseInt(get("durationMinutes"), 10);
 
-  return {
+  const activity: Activity = {
     id,
     name,
     category: (get("category") || "Icebreaker") as Category,
@@ -77,7 +79,9 @@ function rowToActivity(header: string[], row: string[]): Activity | null {
     debriefQuestions: splitList(get("debriefQuestions")),
     illustration: get("illustration") || undefined,
     imageUrl: get("imageUrl") || undefined,
+    pointToPonder: get("pointToPonder") || undefined,
   };
+  return activity;
 }
 
 /**
@@ -103,9 +107,14 @@ export async function getActivities(): Promise<Activity[]> {
     if (activities.length === 0) throw new Error("Sheet produced no valid rows");
 
     const seedById = new Map(SEED_ACTIVITIES.map((a) => [a.id, a]));
-    return activities.map((a) =>
-      a.illustration ? a : { ...a, illustration: seedById.get(a.id)?.illustration }
-    );
+    return activities.map((a) => {
+      const seed = seedById.get(a.id);
+      return {
+        ...a,
+        illustration: a.illustration ?? seed?.illustration,
+        pointToPonder: a.pointToPonder ?? getPointToPonder(a),
+      };
+    });
   } catch {
     return SEED_ACTIVITIES;
   }
@@ -135,6 +144,7 @@ export function activitiesToCsv(activities: Activity[]): string {
       (a.debriefQuestions ?? []).join(" | "),
       a.illustration ?? "",
       a.imageUrl ?? "",
+      a.pointToPonder ?? getPointToPonder(a),
     ].map(escape);
     lines.push(row.join(","));
   }
